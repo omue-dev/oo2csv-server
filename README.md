@@ -1,6 +1,6 @@
 # OO2CSV Server
 
-A lightweight Node.js server …
+A lightweight Node.js server that exposes your product and customer data via simple CSV/JSON APIs. Easily integrate it into your workflow or call its endpoints from your frontend or scripts.
 
 ## Prerequisites
 

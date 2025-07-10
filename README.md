@@ -1,7 +1,6 @@
-````markdown
 # OO2CSV Server
 
-A lightweight Node.js server that exposes your product and customer data via simple CSV/JSON APIs. Easily integrate it into your workflow or call its endpoints from your frontend or scripts.
+A lightweight Node.js server …
 
 ## Prerequisites
 
@@ -11,10 +10,10 @@ A lightweight Node.js server that exposes your product and customer data via sim
 ## Installation
 
 1. Clone this repository  
-   ```bash
-   git clone https://github.com/your-org/oo2csv-server.git
-   cd oo2csv-server
-````
+```bash
+git clone …  
+cd oo2csv-server
+```
 
 2. Install dependencies
 

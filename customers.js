@@ -77,6 +77,69 @@ function formatGermanDate(rawDate) {
   return `${day}.${month}.${year}`;
 }
 
+function validateDiscount(discount) 
+{
+  if (discount > 1) return discount / 100;
+  else if (discount > 9) return discount / 1000;
+  else return discount
+}
+
+function toEUCountryCode(country) {
+  if (!country) return '';
+  const map = {
+    'A': 'AT', 'AT': 'AT', 'Austria': 'AT', 'Österreich': 'AT',
+    'D': 'DE', 'DE': 'DE', 'Germany': 'DE', 'Deutschland': 'DE',
+    'CH': 'CH', 'Switzerland': 'CH', 'Schweiz': 'CH',
+    'FR': 'FR', 'France': 'FR', 'Frankreich': 'FR',
+    'IT': 'IT', 'Italy': 'IT', 'Italien': 'IT',
+    'ES': 'ES', 'Spain': 'ES', 'Spanien': 'ES',
+    'NL': 'NL', 'Netherlands': 'NL', 'Niederlande': 'NL',
+    'BE': 'BE', 'Belgium': 'BE', 'Belgien': 'BE',
+    'LU': 'LU', 'Luxembourg': 'LU', 'Luxemburg': 'LU',
+    'DK': 'DK', 'Denmark': 'DK', 'Dänemark': 'DK',
+    'SE': 'SE', 'Sweden': 'SE', 'Schweden': 'SE',
+    'FI': 'FI', 'Finland': 'FI', 'Finnland': 'FI',
+    'IE': 'IE', 'Ireland': 'IE', 'Irland': 'IE',
+    'PT': 'PT', 'Portugal': 'PT',
+    'GR': 'GR', 'Greece': 'GR', 'Griechenland': 'GR',
+    'PL': 'PL', 'Poland': 'PL', 'Polen': 'PL',
+    'CZ': 'CZ', 'Czech Republic': 'CZ', 'Tschechien': 'CZ',
+    'SK': 'SK', 'Slovakia': 'SK', 'Slowakei': 'SK',
+    'HU': 'HU', 'Hungary': 'HU', 'Ungarn': 'HU',
+    'SI': 'SI', 'Slovenia': 'SI', 'Slowenien': 'SI',
+    'HR': 'HR', 'Croatia': 'HR', 'Kroatien': 'HR',
+    'EE': 'EE', 'Estonia': 'EE', 'Estland': 'EE',
+    'LV': 'LV', 'Latvia': 'LV', 'Lettland': 'LV',
+    'LT': 'LT', 'Lithuania': 'LT', 'Litauen': 'LT',
+    'BG': 'BG', 'Bulgaria': 'BG', 'Bulgarien': 'BG',
+    'RO': 'RO', 'Romania': 'RO', 'Rumänien': 'RO',
+    'CY': 'CY', 'Cyprus': 'CY', 'Zypern': 'CY',
+    'MT': 'MT', 'Malta': 'MT',
+  };
+  const key = country.trim();
+  return map[key] || key;
+}
+
+function getSalutation(anredeNr) {
+  const map = {
+    1: 'Herrn',
+    2: 'Frau',
+    3: 'Frau/Herrn',
+    4: 'Herrn Dr.',
+    5: 'Frau Dr.',
+    6: 'Frau/Herrn Dr.',
+    7: 'Herrn Prof. Dr.',
+    8: 'Frau Prof. Dr.',
+    9: 'Firma',
+    10: 'An das',
+    11: 'An den',
+    12: 'An die',
+    13: 'Familie'
+  };
+  const n = parseInt(anredeNr, 10);
+  return map[n] || '';
+}
+
 module.exports = function customers() {
   const data = readCSV(path.join(__dirname, 'data/customers.csv')).filter(c => c.KundeNr);
 
@@ -86,12 +149,12 @@ module.exports = function customers() {
     const newRemarks = [];
 
     // Kundengruppen zuerst
-    ['Alpenverein','Pfadfinder','Kletterer','Bergsteiger','Radfahrer'].forEach(key => {
-      const val = c[key];
-      if (val != 0 || cleanText(val) != '0') {
-        newRemarks.push(`KdGr.: ${key}`);
-      }
-    });
+    // ['Alpenverein','Pfadfinder','Kletterer','Bergsteiger','Radfahrer'].forEach(key => {
+    //   const val = c[key];
+    //   if (val != 0 || cleanText(val) != '0') {
+    //     newRemarks.push(`KdGr.: ${key}`);
+    //   }
+    // });
 
     // 2) dann AbgerechnetBis (falls vorhanden)
     const abgraw = cleanText(c.AbgerechnetBis);
@@ -117,11 +180,29 @@ module.exports = function customers() {
     const email = isValidEmail ? rawEmail : '';
     const mail_confirmation = isValidEmail;
 
+    // Straße und Hausnummer splitten
+    const rawStreet = cleanText(c.Straße);
+    let streetName = rawStreet;
+    let streetNumber = '';
+    const addrMatch = rawStreet.match(/^(.*\D)\s*(\d.*)$/);
+    if (addrMatch) {
+      streetName   = addrMatch[1].trim();  // everything up to the last non-digit
+      streetNumber = addrMatch[2].trim();  // the digit+ suffix
+    }
+
+    // Set Country Code
+    c.Land = toEUCountryCode(c.Land);
+
+    // validate Discounts
+    const discount = validateDiscount(parseFloat(c.Rabatt) || 0);
+   // 521 discount 3 
     return {
       customer_id: c.KundeNr,
+      salutation: getSalutation(c.AnredeNr),
       lastname: cleanText(c.Nachname),
       firstname: cleanText(c.Vorname),
-      street: cleanText(c.Straße),
+      street: streetName,
+      street_number: streetNumber,
       zip: cleanZip(c.PLZ),
       city: cleanText(c.Ort),
       country: cleanText(c.Land),
@@ -132,7 +213,7 @@ module.exports = function customers() {
       mail_confirmation,
       birthdate: cleanText(c.Geburtsdatum),
       remark: newRemarks,
-      discount: parseFloat(c.Rabatt) || 0,
+      discount: discount,
       deleted: c.geloescht === '1'
     };
   });

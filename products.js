@@ -223,6 +223,9 @@ module.exports = async function getProducts(search) {
             sizeRange = allSizeLabels[0];
         }
 
+        const groupResults = [];
+        const stockedSizes = new Set();
+
         // Now get all matching stock entries for this group (article + color)
         for (let i = 0; i < stock.length; i++) {
             const entry = stock[i];
@@ -263,8 +266,52 @@ module.exports = async function getProducts(search) {
                     vat: vatRate
                 };
 
-                results.push(productEntry);
+                groupResults.push(productEntry);
+                stockedSizes.add(entry.groesse);
             }
+        }
+
+        // Attach missing sizes from product-sizes.csv with stock 0
+        for (let i = 0; i < relevantSizes.length; i++) {
+            const sizeEntry = relevantSizes[i];
+            const sizeLabel = sizeEntry.groesse;
+
+            if (sizeLabel && !stockedSizes.has(sizeLabel)) {
+                const vatRate = parseInt(group.mwst) === 1 ? 0.07 : 0.19;
+
+                const productEntry = {
+                    unique_id: null,
+                    product_id: group.modell_code,
+                    name: group.modell,
+                    color_code: group.color_code,
+                    color: group.farbe,
+                    supplier_id: parseInt(group.lieferantNr),
+                    supplier: supplierMap.get(String(group.lieferantNr)) || 'Unknown',
+                    manufacturer: group.lieferant,
+                    size: sizeLabel,
+                    size_range: sizeRange,
+                    stock: 0,
+                    index: parseInt(sizeEntry.Index),
+                    real_ek: null,
+                    list_ek: parseFloat(group.preis),
+                    discount1: parseFloat(group.rabatt1),
+                    discount2: parseFloat(group.rabatt2),
+                    list_vk: parseFloat(group.vk),
+                    special_price: specialPriceMap.get(artikelNr) || null,
+                    vat: vatRate
+                };
+
+                groupResults.push(productEntry);
+            }
+        }
+
+        // Sort results for this group by size index before pushing
+        groupResults.sort(function(a, b) {
+            return a.index - b.index;
+        });
+
+        for (let i = 0; i < groupResults.length; i++) {
+            results.push(groupResults[i]);
         }
     }
 

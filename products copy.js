@@ -134,25 +134,13 @@ module.exports = async function getProducts(search) {
     const supplierMap = createSupplierMap(suppliers);
     const specialPriceMap = createSpecialPriceMap(products);
 
-    // NEU: Lookup für Zusatzinfos aus products.csv
-    const productInfoMap = {};
-    for (let i = 0; i < products.length; i++) {
-        const p = products[i];
-        const artikelNr = String(p.ArtikelNr);
-        productInfoMap[artikelNr] = {
-            vpe: p.VPE ? parseInt(p.VPE) : null,
-            warengruppeNr: p.WarengruppeNr ? String(p.WarengruppeNr) : null,
-            vkRabattMax: p.VKRabattMax ? parseFloat(p.VKRabattMax) : null
-        };
-    }
-
     const filteredArticleNumbers = getFilteredArticleNumbers(stock, search);
     const grouped = groupByArticleAndColor(stock, filteredArticleNumbers);
 
     const results = [];
-    const existingSizes = {};
+    const existingSizes = {}; // Für Duplikat-Kontrolle
 
-    let dummyId = 3000000; // global unique
+    let dummyId = 3000000; // Dummy-ID für fehlende Größen
 
     for (const groupKey in grouped) {
         if (!grouped.hasOwnProperty(groupKey)) {
@@ -181,7 +169,6 @@ module.exports = async function getProducts(search) {
 
                 const vatRate = parseInt(entry.MWSt) === 1 ? 0.07 : 0.19;
                 const sizeLabel = entry.groesse;
-                const productInfos = productInfoMap[artikelNr] || {};
 
                 const productEntry = {
                     unique_id: entry.IdentNr,
@@ -193,66 +180,35 @@ module.exports = async function getProducts(search) {
                     supplier: supplierMap.get(String(group.lieferantNr)) || 'Unknown',
                     manufacturer: group.lieferant,
                     size: sizeLabel,
+                    size_range: "", // Baust du wie gehabt, wenn du willst
                     stock: parseFloat(entry.Bestand) || 0,
                     index: sizeIndex,
                     real_ek: parseFloat(entry.EK) || null,
                     list_ek: parseFloat(entry.Preis),
+                    discount1: parseFloat(entry.Rabatt1),
+                    discount2: parseFloat(entry.Rabatt2),
                     list_vk: parseFloat(entry.VK),
                     special_price: specialPriceMap.get(artikelNr) || null,
-                    vat: vatRate,
-                    vpe: productInfos.vpe,
-                    warengruppeNr: productInfos.warengruppeNr,
-                    vkRabattMax: productInfos.vkRabattMax,
-                    kunde: entry.Kunde || null
+                    vat: vatRate
                 };
 
                 results.push(productEntry);
-                existingSizes[artikelNr + '|' + farbe + '|' + sizeLabel] = {
-                    template: productEntry // merken für Dummy-Kopie!
-                };
+                existingSizes[artikelNr + '|' + farbe + '|' + sizeLabel] = true;
             }
         }
 
         // 2. Eine Stock-Vorlage für Dummy-Größen bereithalten (für Preise etc.)
-        // Wir nehmen die existierenden Daten aus results, falls vorhanden
-        let templateEntry = null;
-        for (let key in existingSizes) {
-            if (key.startsWith(artikelNr + '|' + farbe + '|')) {
-                templateEntry = existingSizes[key].template;
+        let templateStockEntry = null;
+        for (let i = 0; i < stock.length; i++) {
+            if (
+                String(stock[i].ArtikelNr) === artikelNr &&
+                stock[i].Farbe === farbe
+            ) {
+                templateStockEntry = stock[i];
                 break;
             }
         }
-        // Wenn keine Vorlage, versuchen wir aus dem Stock
-        if (!templateEntry) {
-            for (let i = 0; i < stock.length; i++) {
-                if (String(stock[i].ArtikelNr) === artikelNr && stock[i].Farbe === farbe) {
-                    const productInfos = productInfoMap[artikelNr] || {};
-                    templateEntry = {
-                        unique_id: null,
-                        product_id: group.modell_code,
-                        name: group.modell,
-                        color_code: group.color_code,
-                        color: group.farbe,
-                        supplier_id: parseInt(group.lieferantNr),
-                        supplier: supplierMap.get(String(group.lieferantNr)) || 'Unknown',
-                        manufacturer: group.lieferant,
-                        size: null,
-                        stock: 0,
-                        index: 0,
-                        real_ek: parseFloat(stock[i].EK) || null,
-                        list_ek: parseFloat(stock[i].Preis),
-                        list_vk: parseFloat(stock[i].VK),
-                        special_price: specialPriceMap.get(artikelNr) || null,
-                        vat: parseInt(stock[i].MWSt) === 1 ? 0.07 : 0.19,
-                        vpe: productInfos.vpe,
-                        warengruppeNr: productInfos.warengruppeNr,
-                        vkRabattMax: productInfos.vkRabattMax,
-                        kunde: stock[i].Kunde || null
-                    };
-                    break;
-                }
-            }
-        }
+
 
         // 3. Jetzt alle Sizes prüfen, ob sie im Stock-Ergebnis fehlen!
         for (let j = 0; j < sizes.length; j++) {
@@ -260,15 +216,29 @@ module.exports = async function getProducts(search) {
             if (String(sizeEntry.ArtikelNr) === artikelNr) {
                 const sizeLabel = sizeEntry.Größe;
                 if (!existingSizes[artikelNr + '|' + farbe + '|' + sizeLabel]) {
-                    // Dummy auf Basis der Vorlage
-                    const dummy = Object.assign({}, templateEntry || {});
-                    dummy.unique_id = dummyId++;
-                    dummy.size = sizeLabel;
-                    dummy.stock = 0;
-                    dummy.index = parseInt(sizeEntry.Index);
-
-                    results.push(dummy);
-                    existingSizes[artikelNr + '|' + farbe + '|' + sizeLabel] = { template: dummy };
+                    results.push({
+                        unique_id: dummyId,
+                        product_id: group.modell_code,
+                        name: group.modell,
+                        color_code: group.color_code,
+                        color: group.farbe,
+                        supplier_id: parseInt(group.lieferantNr),
+                        supplier: supplierMap.get(String(group.lieferantNr)) || 'Unknown',
+                        manufacturer: group.lieferant,
+                        size: sizeLabel,
+                        size_range: "", // Optional
+                        stock: 0,
+                        index: parseInt(sizeEntry.Index),
+                        real_ek: templateStockEntry ? parseFloat(templateStockEntry.EK) : null,
+                        list_ek: templateStockEntry ? parseFloat(templateStockEntry.Preis) : null,
+                        discount1: templateStockEntry ? parseFloat(templateStockEntry.Rabatt1) : null,
+                        discount2: templateStockEntry ? parseFloat(templateStockEntry.Rabatt2) : null,
+                        list_vk: templateStockEntry ? parseFloat(templateStockEntry.VK) : null,
+                        special_price: specialPriceMap.get(artikelNr) || null,
+                        vat: templateStockEntry ? (parseInt(templateStockEntry.MWSt) === 1 ? 0.07 : 0.19) : 0.19
+                    });
+                    existingSizes[artikelNr + '|' + farbe + '|' + sizeLabel] = true;
+                    dummyId++; // Erhöhe für jeden Dummy!
                 }
             }
         }
@@ -295,4 +265,3 @@ module.exports = async function getProducts(search) {
         items: finalResults
     };
 };
-

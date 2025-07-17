@@ -142,7 +142,7 @@ module.exports = async function getProducts(search) {
         productInfoMap[artikelNr] = {
             vpe: p.VPE ? parseInt(p.VPE) : null,
             warengruppeNr: p.WarengruppeNr ? String(p.WarengruppeNr) : null,
-            vkRabattMax: p.VKRabattMax ? parseFloat(p.VKRabattMax) : null
+            vkRabattMax: p.VKRabattMax ? parseInt(p.VKRabattMax * 100) : null
         };
     }
 
@@ -199,7 +199,7 @@ module.exports = async function getProducts(search) {
                     list_ek: parseFloat(entry.Preis),
                     list_vk: parseFloat(entry.VK),
                     special_price: specialPriceMap.get(artikelNr) || null,
-                    vat: vatRate,
+                    vat: parseInt(vatRate * 100),
                     vpe: productInfos.vpe,
                     warengruppeNr: productInfos.warengruppeNr,
                     vkRabattMax: productInfos.vkRabattMax,

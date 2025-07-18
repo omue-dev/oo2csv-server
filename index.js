@@ -1,13 +1,26 @@
+
 const express = require('express');
 const cors = require('cors');
 const products = require('./products');
 const customers = require('./customers');
 const billing = require('./account_billing');
+const productGroups = require('./product-groups');
 
 const app = express();
 const PORT = 3001;
 
 app.use(cors());
+
+app.get('/api/product-groups', (req, res) => {
+  try {
+    const result = productGroups();
+    res.json(result);
+  } catch (err) {
+    console.error('Fehler bei ProductGroups:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
 
 app.get('/api/produkte', async (req, res) => {
   const search = req.query.search || ''; 

@@ -162,6 +162,8 @@ module.exports = async function getProducts(search) {
         const group = grouped[groupKey];
         const artikelNr = group.artikelNr;
         const farbe = group.farbe;
+        // Get EK and VK from products.csv for this artikelNr (once per group)
+        const productCSV = products.find(p => String(p.ArtikelNr) === artikelNr) || {};
 
         // 1. Alle stock-Einträge für diese Kombi abarbeiten (wie gehabt)
         for (let i = 0; i < stock.length; i++) {
@@ -195,9 +197,9 @@ module.exports = async function getProducts(search) {
                     size: sizeLabel,
                     stock: parseFloat(entry.Bestand) || 0,
                     index: sizeIndex,
-                    real_ek: parseFloat(entry.EK) || null,
-                    list_ek: parseFloat(entry.Preis),
-                    list_vk: parseFloat(entry.VK),
+                    real_ek: parseFloat(entry.EK).toFixed(2) || null,
+                    list_ek: productCSV.EK ? parseFloat(productCSV.EK).toFixed(2) : null,
+                    list_vk: productCSV.VK ? parseFloat(productCSV.VK).toFixed(2) : null,
                     special_price: specialPriceMap.get(artikelNr) || null,
                     vat: parseInt(vatRate * 100),
                     vpe: productInfos.vpe,
@@ -240,8 +242,8 @@ module.exports = async function getProducts(search) {
                         stock: 0,
                         index: 0,
                         real_ek: parseFloat(stock[i].EK) || null,
-                        list_ek: parseFloat(stock[i].Preis),
-                        list_vk: parseFloat(stock[i].VK),
+                        list_ek: productCSV.EK ? parseFloat(productCSV.EK).toFixed(2) : null,
+                        list_vk: productCSV.VK ? parseFloat(productCSV.VK).toFixed(2) : null,
                         special_price: specialPriceMap.get(artikelNr) || null,
                         vat: parseInt(stock[i].MWSt) === 1 ? 0.07 : 0.19,
                         vpe: productInfos.vpe,

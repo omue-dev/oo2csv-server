@@ -5,6 +5,9 @@ const products = require('./products');
 const customers = require('./customers');
 const billing = require('./account_billing');
 const productGroups = require('./product-groups');
+const orders = require('./orders');
+
+
 
 const app = express();
 const PORT = 3001;
@@ -54,6 +57,21 @@ app.get('/api/account-billing', async (req, res) => {
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 });
+
+// index.js:
+app.get('/api/orders', async (req, res) => {
+  const search = req.query.search || "";
+  const order_nr = req.query.order_nr || "";
+  try {
+    const result = await orders({ search, order_nr }); // <-- Aufruf als Objekt!
+    res.json(result);
+  } catch (err) {
+    console.error('Fehler bei OrderProducts:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+
 
 app.listen(PORT, () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);

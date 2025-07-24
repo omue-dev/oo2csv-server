@@ -41,7 +41,6 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
         };
     }
 
-
     // STOCK filtern
     const filteredStock = [];
     for (const entry of stock) {
@@ -53,7 +52,6 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
     }
 
     let dummyId = 3000000;
-
 
     // STOCK-Produkte + Dummys
     for (const entry of filteredStock) {
@@ -81,7 +79,7 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
             color: farbe,
             supplier_id: parseInt(entry.LieferantNr),
             supplier: supplierMap.get(String(entry.LieferantNr)) || 'Unknown',
-            manufacturer: entry.Hersteller,
+            manufacturer: (productCSV.Hersteller || ''),
             size: sizeLabel,
             stock: parseFloat(entry.Bestand) || 0,
             index: sizeIndex,
@@ -111,6 +109,8 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
         const farbe = (entry.Farbe || '').trim();
         const color_code = (entry.FarbeCode || '').trim();
         const possibleSizes = sizes.filter(s => String(s.ArtikelNr) === artikelNr);
+        const productCSV = products.find(p => String(p.ArtikelNr) === artikelNr) || {};
+        const productInfos = productInfoMap[artikelNr] || {};
 
         for (const sizeEntry of possibleSizes) {
             const sizeLabel = (sizeEntry.Größe || '-').trim();
@@ -124,18 +124,18 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
                     color: farbe,
                     supplier_id: parseInt(entry.LieferantNr),
                     supplier: supplierMap.get(String(entry.LieferantNr)) || 'Unknown',
-                    manufacturer: entry.Hersteller,
+                    manufacturer: (productCSV.Hersteller || ''),
                     size: sizeLabel,
                     stock: 0,
                     index: parseInt(sizeEntry.Index),
                     real_ek: parseFloat(entry.EK).toFixed(2) || null,
-                    list_ek: productInfoMap[artikelNr]?.ek,
-                    list_vk: productInfoMap[artikelNr]?.vk,
+                    list_ek: productInfos.ek,
+                    list_vk: productInfos.vk,
                     special_price: specialPriceMap.get(artikelNr) || null,
                     vat: parseInt(entry.MWSt) === 1 ? 7 : 19,
-                    vpe: productInfoMap[artikelNr]?.vpe,
-                    warengruppeNr: productInfoMap[artikelNr]?.warengruppeNr,
-                    vkRabattMax: productInfoMap[artikelNr]?.vkRabattMax,
+                    vpe: productInfos.vpe,
+                    warengruppeNr: productInfos.warengruppeNr,
+                    vkRabattMax: productInfos.vkRabattMax,
                     kunde: entry.Kunde || null,
                     order_nr: null,
                     order_date: null,
@@ -210,8 +210,8 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
             color_code: color_code,
             color: order.Farbe || '',
             supplier_id: parseInt(order.Lieferant),
-            supplier: supplierMap.get(String(order.Lieferant)) || 'Unknown',
-            manufacturer: productCSV.Hersteller || '',
+            supplier: supplierMap.get(String(order.Lieferant)) || '',
+            manufacturer: (productCSV.Hersteller || ''),
             size: sizeLabel,
             stock: 0,
             index: sizes.find(s => String(s.ArtikelNr) === artikelNr && (s.Größe === sizeLabel))?.Index || 0,
@@ -235,7 +235,6 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
         comboMap.set(comboKey, obj);
     }
 
-
     // --- Filter ---
     let finalResults = results;
 
@@ -245,6 +244,15 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
         const lowerSearch = search.toLowerCase();
         finalResults = finalResults.filter(r => r.name && r.name.toLowerCase().includes(lowerSearch));
     }
+
+    // Sortierung: Hersteller ASC, Name ASC, Index ASC
+    finalResults.sort((a, b) => {
+        if ((a.manufacturer || '').toLowerCase() < (b.manufacturer || '').toLowerCase()) return -1;
+        if ((a.manufacturer || '').toLowerCase() > (b.manufacturer || '').toLowerCase()) return 1;
+        if ((a.name || '').toLowerCase() < (b.name || '').toLowerCase()) return -1;
+        if ((a.name || '').toLowerCase() > (b.name || '').toLowerCase()) return 1;
+        return (a.index || 0) - (b.index || 0);
+    });
 
     return {
         total: finalResults.length,

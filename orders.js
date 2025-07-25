@@ -235,6 +235,70 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
         comboMap.set(comboKey, obj);
     }
 
+    // Füge fehlende Größen dem Größenlauf hinzu
+    // 1. Sammle alle Kombis (ArtikelNr + Farbcode) aus den Ergebnissen
+    const combo2Set = new Set();
+    for (const x of results) {
+    combo2Set.add(`${x.product_id}|${x.color_code}`);
+    }
+
+    // 2. Alle schon vorhandenen (ArtikelNr|Farbcode|Größe) als Set
+    const combo3Set = new Set();
+    for (const x of results) {
+    combo3Set.add(`${x.product_id}|${x.color_code}|${(x.size || '-').trim()}`);
+    }
+
+    // 3. Jetzt ALLE Größen für jede Kombi checken!
+    for (const combo2 of combo2Set) {
+        const [artikelNr, color_code] = combo2.split('|');
+        // Alle Größen für diesen Artikel laut sizes.csv
+        const alleGroessen = sizes
+            .filter(s => String(s.ArtikelNr) === artikelNr)
+            .map(s => (s.Größe || '-').trim());
+
+        for (const sizeLabel of alleGroessen) {
+            const combo3 = `${artikelNr}|${color_code}|${sizeLabel}`;
+            if (!combo3Set.has(combo3)) {
+            // Dummy erzeugen, Werte z.B. von existierender Zeile mit dieser Kombi klauen
+            const referenz = results.find(x => x.product_id === artikelNr && x.color_code === color_code) || {};
+            const sizeEntry = sizes.find(
+                s => String(s.ArtikelNr) === artikelNr && (s.Größe || '-').trim() === sizeLabel
+            );
+            const productInfos = productInfoMap[artikelNr] || {};
+            results.push({
+                unique_id: dummyId++,
+                product_id: artikelNr,
+                name: referenz.name || '',
+                color_code: color_code,
+                color: referenz.color || '',
+                supplier_id: referenz.supplier_id || null,
+                supplier: referenz.supplier || '',
+                manufacturer: referenz.manufacturer || '',
+                size: sizeLabel,
+                stock: 0,
+                index: sizeEntry ? parseInt(sizeEntry.Index) : 0,
+                real_ek: referenz.real_ek || 0,
+                list_ek: productInfos.ek,
+                list_vk: productInfos.vk,
+                special_price: specialPriceMap.get(artikelNr) || null,
+                vat: referenz.vat || 19,
+                vpe: productInfos.vpe,
+                warengruppeNr: productInfos.warengruppeNr,
+                vkRabattMax: productInfos.vkRabattMax,
+                kunde: null,
+                order_nr: null,
+                order_date: null,
+                delivery_date: null,
+                order_quantity: 0,
+                order_discounts_first: null,
+                order_discounts_second: null
+            });
+            combo3Set.add(combo3);
+            }
+        }
+    }
+
+
     // --- Filter ---
     let finalResults = results;
 
@@ -245,14 +309,43 @@ module.exports = async function getProducts({ search = "", order_nr = "" }) {
         finalResults = finalResults.filter(r => r.name && r.name.toLowerCase().includes(lowerSearch));
     }
 
-    // Sortierung: Hersteller ASC, Name ASC, Index ASC
+    // Sortierung: Hersteller ASC, Name ASC, Index ASC, Color Code ASC
     finalResults.sort((a, b) => {
-        if ((a.manufacturer || '').toLowerCase() < (b.manufacturer || '').toLowerCase()) return -1;
-        if ((a.manufacturer || '').toLowerCase() > (b.manufacturer || '').toLowerCase()) return 1;
-        if ((a.name || '').toLowerCase() < (b.name || '').toLowerCase()) return -1;
-        if ((a.name || '').toLowerCase() > (b.name || '').toLowerCase()) return 1;
-        return (a.index || 0) - (b.index || 0);
+        const manuA = (a.manufacturer || '').toLowerCase();
+        const manuB = (b.manufacturer || '').toLowerCase();
+        if (manuA < manuB) return -1;
+        if (manuA > manuB) return 1;
+
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+
+        // Jetzt schon color_code vergleichen
+        const colorA = a.color_code;
+        const colorB = b.color_code;
+
+        const numA = parseFloat(colorA);
+        const numB = parseFloat(colorB);
+        const isNumA = !isNaN(numA);
+        const isNumB = !isNaN(numB);
+
+        if (isNumA && isNumB) {
+            if (numA !== numB) return numA - numB;
+        } else {
+            const strA = (colorA || '').toString().toLowerCase();
+            const strB = (colorB || '').toString().toLowerCase();
+            if (strA < strB) return -1;
+            if (strA > strB) return 1;
+        }
+
+        // Erst danach Index berücksichtigen
+        const indexA = a.index || 0;
+        const indexB = b.index || 0;
+        return indexA - indexB;
     });
+
+
 
     return {
         total: finalResults.length,
